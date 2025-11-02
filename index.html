@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulador Round Robin - Christopher Valencia Marin</title>
+<style>
+  :root{
+    --card-bg: rgba(255,255,255,0.9);
+    --muted: #6f7784;
+    --accent: #4a90e2;
+    --ok: rgba(123,211,137,0.22);
+    --grid-line: rgba(11,37,64,0.08);
+    --cell-size: 36px; 
+  }
+
+  html,body{height:100%;margin:0;padding:0}
+  body{
+    font-family: Inter, Arial, sans-serif;
+    color:#0b2540;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+    background:
+      linear-gradient(180deg, rgba(10,25,47,0.38), rgba(10,25,47,0.38)),
+      url('fondo.jpg') center/cover no-repeat,
+      linear-gradient(120deg,#0f1724,#0b2540);
+  }
+  body::before{content:"";position:fixed;inset:0;background:rgba(6,12,28,0.28);pointer-events:none;}
+
+  .container{
+    width:min(1200px,96%);
+    background:var(--card-bg);
+    border-radius:14px;
+    padding:18px;
+    box-shadow:0 12px 36px rgba(2,6,23,0.45);
+    backdrop-filter: blur(6px) saturate(120%);
+    border:1px solid rgba(255,255,255,0.6);
+  }
+
+  h1{margin:0 0 12px 0;font-size:20px;display:flex;gap:10px;align-items:center}
+  .controls{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  input[type=number],button{padding:8px 10px;border-radius:8px;border:1px solid #ddd;font-size:14px}
+  button{cursor:pointer;background:#fff;box-shadow:0 6px 18px rgba(3,9,24,0.06)}
+  .small{font-size:13px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin-top:10px;background:transparent}
+  th,td{padding:8px 6px;border-bottom:1px solid rgba(6,12,28,0.06);text-align:left;font-size:13px}
+  th{background:transparent;text-transform:uppercase;font-size:12px;color:var(--muted)}
+
+ 
+  .gantt {
+    margin-top:12px;
+    display:flex;
+    gap:12px;
+    overflow:auto;
+    padding:12px;
+    background:transparent;
+    align-items:flex-start;
+  }
+
+  .proc-col{
+    min-width:160px;
+    max-width:180px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.68), rgba(255,255,255,0.8));
+    border-radius:10px;
+    padding:8px;
+    box-shadow:0 6px 18px rgba(2,6,23,0.06);
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .proc-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .proc-name{font-weight:800;color:#0b2540}
+  
+  .cells{
+    display:flex;
+    flex-direction:column;
+    gap:0; 
+    align-items:stretch;
+    max-height:420px;
+    overflow:auto;
+    border-radius:8px;
+    padding:6px;
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    
+    background-size: var(--cell-size) var(--cell-size), var(--cell-size) var(--cell-size);
+  }
+
+ 
+  .cell{
+    height: var(--cell-size);
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    padding-left:10px;
+    font-size:13px;
+    color:#0b2540;
+    background: transparent; 
+    box-shadow: none;
+    border: none;
+  }
+  .cell.done{ 
+    background: rgba(230,240,255,0.35);
+    border-radius:4px;
+  }
+  .cell.active{
+    background: linear-gradient(90deg, rgba(123,211,137,0.24), rgba(123,211,137,0.16));
+    border-radius:6px;
+    box-shadow:0 8px 20px rgba(7,25,13,0.06);
+    font-weight:700;
+  }
+
+  .swatch{
+    height:6px;
+    width:100%;
+    border-radius:6px;
+    margin-bottom:8px;
+  }
+
+  .legend{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .legend .item{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+  .dot{width:18px;height:12px;border-radius:4px;border:1px solid #ddd}
+
+  .controls .spacer{flex:1}
+  .footer-note{margin-top:12px;color:var(--muted);font-size:13px}
+
+  @media (max-width:900px){
+    :root{--cell-size:28px}
+    .cells{max-height:280px}
+    .proc-col{min-width:120px;max-width:140px}
+  }
+</style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Simulador Round Robin cuadriculado">
+    <h1>Simulador Round Robin <span class="small">— Christopher Valencia Marin</span></h1>
+
+    <div class="controls" role="region" aria-label="Controles">
+      <label>Quantum: <input id="quantum" type="number" value="3" min="1" style="width:84px"/></label>
+      <label> N Procesos: <input id="minProc" type="number" value="5" min="1" style="width:84px"/></label>
+      <button id="gen">Generar</button>
+      <button id="start">Simular</button>
+      <button id="pause">Pausar</button>
+      <button id="reset">Reiniciar</button>
+      <div class="spacer" aria-hidden="true"></div>
+      <span class="small">Duraciones 2–20 ciclos · Ajusta quantum antes de simular</span>
+    </div>
+
+    <div id="proclist" aria-live="polite"></div>
+
+    <table id="table-res" aria-live="polite">
+      <thead><tr><th>Proceso</th><th>Duración</th><th>Inicio</th><th>Final</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="legend" id="legend" aria-hidden="false"></div>
+
+    <div class="gantt" id="gantt" aria-hidden="false"></div>
+
+    <div class="footer-note">Tip: puedes editar las duraciones antes de simular. Usa “Generar” para procesos aleatorios.</div>
+  </div>
+
+<script>
+  class Proc {
+    constructor(id, duration){
+      this.id = id;
+      this.duration = duration;
+      this.remaining = duration;
+      this.start = null;
+      this.finish = null;
+      this.history = [];
+    }
+  }
+
+  let procs = [];
+  let timeline = [];
+  let quantum = 3;
+  let running = false;
+  let timer = null;
+  let tick = 300;
+  const ganttEl = document.getElementById('gantt');
+  const tableBody = document.querySelector('#table-res tbody');
+  const legendEl = document.getElementById('legend');
+
+  const palette = ['#f7d3d3','#dfe9ff','#fff1cc','#e6f7ef','#f3e6ff','#ffe8d9','#e9f0ff'];
+
+  function renderProcInputs(){
+    const container = document.getElementById('proclist');
+    container.innerHTML = '';
+    procs.forEach((p) => {
+      const row = document.createElement('div');
+      row.style.display='flex';
+      row.style.alignItems='center';
+      row.style.gap='8px';
+      row.style.marginBottom='6px';
+      row.innerHTML = `<div style="width:40px;font-weight:700;color:#0b2540">P${p.id}</div>
+        <label>Dur: <input data-id="${p.id}" class="dur" type="number" min="2" max="20" value="${p.duration}" style="width:70px"/></label>
+        <button data-del="${p.id}">Eliminar</button>`;
+      container.appendChild(row);
+    });
+    container.querySelectorAll('.dur').forEach(inp=>{
+      inp.onchange = (e)=>{
+        const id = Number(e.target.dataset.id);
+        const p = procs.find(x=>x.id===id);
+        p.duration = Math.max(2, Math.min(20, Number(e.target.value)||2));
+        p.remaining = p.duration;
+      };
+    });
+    container.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.onclick = (e)=>{
+        const id = Number(e.target.dataset.del);
+        procs = procs.filter(x=>x.id!==id);
+        renderProcInputs();
+        renderLegend();
+      };
+    });
+  }
+
+  function genRandom(n=5){
+    procs = [];
+    for(let i=1;i<=n;i++){
+      const d = Math.floor(Math.random()*19)+2;
+      procs.push(new Proc(i,d));
+    }
+    renderProcInputs();
+    renderTable();
+    renderGantt();
+    renderLegend();
+  }
+
+  function buildTimeline(){
+    timeline = [];
+    procs.forEach(p=>{ p.remaining = p.duration; p.start = null; p.finish = null; p.history=[]; });
+    let finished = 0;
+    let time = 0;
+    const q = quantum;
+    while(finished < procs.length){
+      let progressed = false;
+      for(const p of procs){
+        if(p.remaining > 0){
+          if(p.start === null) p.start = time;
+          let use = Math.min(q, p.remaining);
+          for(let i=0;i<use;i++){
+            timeline.push({pid:p.id, time});
+            p.history.push(time);
+            time++;
+          }
+          p.remaining -= use;
+          if(p.remaining === 0){
+            p.finish = time;
+            finished++;
+          }
+          progressed = true;
+        }
+      }
+      if(!progressed) break;
+    }
+  }
+
+  function renderTable(){
+    tableBody.innerHTML = "";
+    procs.forEach(p=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>P${p.id}</td><td>${p.duration}</td><td>${p.start===null ? '-' : p.start}</td><td>${p.finish===null ? '-' : p.finish}</td>`;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function renderGantt(){
+    ganttEl.innerHTML = '';
+    const maxCells = Math.max(1, timeline.length);
+    procs.forEach((p, idx)=>{
+      const col = document.createElement('div');
+      col.className = 'proc-col';
+
+      const sw = document.createElement('div');
+      sw.className = 'swatch';
+      sw.style.background = palette[idx % palette.length];
+      col.appendChild(sw);
+
+      const header = document.createElement('div');
+      header.className = 'proc-header';
+      header.innerHTML = `<div class="proc-name">P${p.id}</div><div class="muted-card">${p.duration} ciclos</div>`;
+      col.appendChild(header);
+
+      const cells = document.createElement('div');
+      cells.className = 'cells';
+      for(let i=0;i<maxCells;i++){
+        const c = document.createElement('div');
+        c.className = 'cell';
+        if(p.history.includes(i)) c.classList.add('done');
+        c.title = `t=${i}`;
+        c.dataset.time = i;
+        cells.appendChild(c);
+      }
+      col.appendChild(cells);
+      ganttEl.appendChild(col);
+    });
+  }
+
+  function renderLegend(){
+    legendEl.innerHTML = '';
+    procs.forEach((p, idx)=>{
+      const it = document.createElement('div');
+      it.className = 'item';
+      it.innerHTML = `<div class="dot" style="background:${palette[idx % palette.length]}"></div><div>P${p.id} (${p.duration})</div>`;
+      legendEl.appendChild(it);
+    });
+  }
+
+  function animateTimeline(){
+    let i = 0;
+    const len = timeline.length;
+    if(len===0) return;
+    running = true;
+    ganttEl.querySelectorAll('.cell.active').forEach(el=>el.classList.remove('active'));
+    timer = setInterval(()=>{
+      if(i>=len){ clearInterval(timer); running=false; renderTable(); return; }
+      const pid = timeline[i].pid;
+      const cols = ganttEl.querySelectorAll('.proc-col');
+      cols.forEach((col, idx)=>{
+        const cellList = col.querySelector('.cells').children;
+        const cell = cellList[i];
+        if(!cell) return;
+        col.querySelectorAll('.cell.active').forEach(el=>el.classList.remove('active'));
+        if(procs[idx].id === pid){
+          cell.classList.add('active');
+          cell.textContent = `t${i}`;
+          const cellsContainer = col.querySelector('.cells');
+          const topPos = cell.offsetTop - 12;
+          cellsContainer.scrollTo({ top: topPos, behavior: 'smooth' });
+        } else {
+          if(procs[idx].history.includes(i)){
+            cell.classList.add('done');
+          }
+        }
+      });
+      i++;
+    }, tick);
+  }
+
+ 
+  document.getElementById('gen').onclick = ()=>{
+    const n = Math.max(1, Number(document.getElementById('minProc').value)||5);
+    genRandom(n);
+  };
+  document.getElementById('start').onclick = ()=>{
+    quantum = Math.max(1, Number(document.getElementById('quantum').value)||1);
+    buildTimeline();
+    renderGantt();
+    renderTable();
+    renderLegend();
+    animateTimeline();
+  };
+  document.getElementById('pause').onclick = ()=>{
+    if(timer) clearInterval(timer);
+    running = false;
+  };
+  document.getElementById('reset').onclick = ()=>{
+    if(timer) clearInterval(timer);
+    procs = [];
+    timeline = [];
+    ganttEl.innerHTML = '';
+    tableBody.innerHTML = '';
+    document.getElementById('proclist').innerHTML = "";
+    legendEl.innerHTML = "";
+  };
+
+ 
+  genRandom(5);
+</script>
+</body>
+</html>
